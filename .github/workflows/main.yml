@@ -1,43 +1,42 @@
-name: Build inadyn with external uClibc toolchain
+name: Build inadyn IPK for OpenWrt
 
 on:
   workflow_dispatch:
+    inputs:
+      openwrt_version:
+        description: 'OpenWrt version'
+        required: true
+        default: '18.06.0'
+        type: string
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout inadyn source
-        uses: actions/checkout@v4
-        with:
-          repository: troglobit/inadyn           # inadyn 官方源码
-          ref: master
-
-      - name: Download ARM uClibc toolchain
+      - name: Build inadyn
         run: |
-          # 从 bootlin 下载一个经典的 armv7-eabihf uClibc 工具链
-          wget -O toolchain.tar.bz2 https://toolchains.bootlin.com/downloads/releases/toolchains/armv7-eabihf/tarballs/armv7-eabihf--uclibc--stable-2022.08-1.tar.bz2
-          mkdir toolchain
-          tar -xf toolchain.tar.bz2 -C toolchain --strip-components=1
-
-      - name: Compile inadyn
-        run: |
-          export PATH=$PWD/toolchain/bin:$PATH
-          export CROSS_COMPILE=arm-linux-
-          export CC=${CROSS_COMPILE}gcc
-          export AR=${CROSS_COMPILE}ar
-          export STRIP=${CROSS_COMPILE}strip
-
-          # 配置 autoreconf 以生成 ./configure
-          sudo apt-get update && sudo apt-get install -y autoconf automake libtool
-          autoreconf -i
-
-          # 配置编译选项，指定动态链接
-          ./configure --host=arm-linux --prefix=/usr
-          make -j$(nproc)
-
-      - name: Upload binary
+          # 下载并解压 SDK
+          SDK_URL="https://archive.openwrt.org/releases/18.06.0/targets/armvirt/32/openwrt-sdk-18.06.0-armvirt-32_gcc-7.3.0_musl_eabi.Linux-x86_64.tar.xz"
+          wget $SDK_URL
+          tar -xf openwrt-sdk-*.tar.xz
+          cd openwrt-sdk-*/
+          
+          # 更新 feeds
+          ./scripts/feeds update -a
+          ./scripts/feeds install inadyn
+          
+          # 配置编译
+          echo "CONFIG_PACKAGE_inadyn=y" > .config
+          make defconfig
+          
+          # 编译
+          make package/inadyn/compile V=s
+          
+          # 查找生成的 IPK
+          find bin/ -name "inadyn*.ipk" -exec cp {} /tmp/ \;
+      
+      - name: Upload IPK
         uses: actions/upload-artifact@v4
         with:
-          name: inadyn-armv7-uclibc
-          path: src/inadyn
+          name: inadyn-ipk
+          path: /tmp/inadyn*.ipk
