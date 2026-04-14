@@ -1,0 +1,43 @@
+name: Build inadyn with external uClibc toolchain
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout inadyn source
+        uses: actions/checkout@v4
+        with:
+          repository: troglobit/inadyn           # inadyn 官方源码
+          ref: master
+
+      - name: Download ARM uClibc toolchain
+        run: |
+          # 从 bootlin 下载一个经典的 armv7-eabihf uClibc 工具链
+          wget -O toolchain.tar.bz2 https://toolchains.bootlin.com/downloads/releases/toolchains/armv7-eabihf/tarballs/armv7-eabihf--uclibc--stable-2022.08-1.tar.bz2
+          mkdir toolchain
+          tar -xf toolchain.tar.bz2 -C toolchain --strip-components=1
+
+      - name: Compile inadyn
+        run: |
+          export PATH=$PWD/toolchain/bin:$PATH
+          export CROSS_COMPILE=arm-linux-
+          export CC=${CROSS_COMPILE}gcc
+          export AR=${CROSS_COMPILE}ar
+          export STRIP=${CROSS_COMPILE}strip
+
+          # 配置 autoreconf 以生成 ./configure
+          sudo apt-get update && sudo apt-get install -y autoconf automake libtool
+          autoreconf -i
+
+          # 配置编译选项，指定动态链接
+          ./configure --host=arm-linux --prefix=/usr
+          make -j$(nproc)
+
+      - name: Upload binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: inadyn-armv7-uclibc
+          path: src/inadyn
