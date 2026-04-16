@@ -5,31 +5,31 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-20.04  # 使用 Ubuntu 20.04，对旧版工具更友好
     steps:
       - name: Install Python 2
         run: |
           sudo apt-get update
           sudo apt-get install -y python2 python2-dev
+          # 创建 python 软链接指向 python2
           sudo ln -sf /usr/bin/python2 /usr/bin/python
 
       - name: Install other build dependencies
         run: |
           sudo apt-get install -y build-essential libncurses5-dev \
             zlib1g-dev gawk git ccache gettext ssh-client xsltproc \
-            wget unzip time file
+            wget unzip time
 
       - name: Download and extract OpenWrt SDK
         run: |
           SDK_URL="https://downloads.openwrt.org/releases/19.07.10/targets/armvirt/32/openwrt-sdk-19.07.10-armvirt-32_gcc-7.5.0_musl_eabi.Linux-x86_64.tar.xz"
           wget $SDK_URL
           tar -xf openwrt-sdk-*.tar.xz
-          # 重命名解压后的目录，方便后续引用
-          mv openwrt-sdk-* openwrt-sdk
+          cd openwrt-sdk-*/
 
       - name: Update feeds and compile inadyn
         run: |
-          cd openwrt-sdk
+          cd openwrt-sdk-*/
           ./scripts/feeds update -a
           ./scripts/feeds install inadyn
           echo "CONFIG_PACKAGE_inadyn=y" > .config
@@ -40,4 +40,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: inadyn-ipk-19.07
-          path: openwrt-sdk/bin/packages/*/packages/inadyn*.ipk
+          path: openwrt-sdk-*/bin/packages/*/packages/inadyn*.ipk
